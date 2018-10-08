@@ -7,9 +7,24 @@ The advantage of integrating this in Elasticsearch is that the vector similarity
 query. Without this plugin you would need to first find nearest neighbours using another tool (e.g. FAISS) and then
 put the IDs of the nearest neighbours in your elastic query. This is cumbersome and probably slower..
 
-## Building
+## Build & setup
 
-... TODO ...
+In order to install this plugin, you need to build the distribution files first:
+
+```
+mvn clean package
+```
+
+This will produce a zip file in target/releases.
+
+After building the zip file, you can install it like this:
+
+```
+elasticsearch-plugin install file:///path/to/plugin/FILE.zip
+```
+
+After this you are ready to go!
+
 
 ## Intended use case
 

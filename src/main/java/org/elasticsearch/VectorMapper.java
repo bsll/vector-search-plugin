@@ -8,6 +8,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -21,13 +22,16 @@ import java.util.Map;
 public class VectorMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "vector";
+    public static final String DIMENSIONS = "dimensions";
+
+    public static final int DEFAULT_DIMENSIONS = 8;
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new VectorSearchFieldType();
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setHasDocValues(false);
-            FIELD_TYPE.setDimensions(8, 8);
+            FIELD_TYPE.setDimensions(DEFAULT_DIMENSIONS, 8);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
@@ -37,10 +41,6 @@ public class VectorMapper extends FieldMapper {
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
-        }
-
-        public void setDimensions(int dims) {
-            fieldType.setDimensions(dims, Double.BYTES);
         }
 
         @Override
@@ -59,12 +59,21 @@ public class VectorMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
-            if (node.containsKey("dimensions")) {
-                builder.setDimensions(XContentMapValues.nodeIntegerValue(node.get("dimensions"), 8));
-                node.remove("dimensions");
+            if (node.containsKey(DIMENSIONS)) {
+                builder.fieldType().setDimensions(XContentMapValues.nodeIntegerValue(node.get(DIMENSIONS), 8), Double.BYTES);
+                node.remove(DIMENSIONS);
             }
             //TypeParsers.parseField(builder, name, node, parserContext);
             return builder;
+        }
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || fieldType().pointDimensionCount() != DEFAULT_DIMENSIONS) {
+            builder.field(DIMENSIONS, fieldType().pointDimensionCount());
         }
     }
 

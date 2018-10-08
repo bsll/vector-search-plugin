@@ -1,5 +1,6 @@
 package org.elasticsearch;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -36,20 +37,20 @@ public class EsPluginTests extends ESIntegTestCase {
                 .endObject();
     }
 
-    private XContentBuilder exampleMapping() throws IOException {
+    private XContentBuilder exampleMapping(int dimensions) throws IOException {
         return jsonBuilder()
             .startObject()
                 .startObject("properties")
                     .startObject("v")
                         .field("type", "vector")
-                        .field("dimensions", "4")
+                        .field("dimensions", Integer.toString(dimensions))
                     .endObject()
                 .endObject()
             .endObject();
     }
 
-    private void doCreateIndex() throws IOException {
-        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(exampleSettings()).addMapping(TYPE_NAME, exampleMapping()).get();
+    private void doCreateIndex(int dimensions) throws IOException {
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(exampleSettings()).addMapping(TYPE_NAME, exampleMapping(dimensions)).get();
     }
 
     private XContentBuilder exampleDocument0() throws IOException {
@@ -66,14 +67,14 @@ public class EsPluginTests extends ESIntegTestCase {
 
     @Test
     public void smokeTest() throws IOException {
-        doCreateIndex();
+        doCreateIndex(8);
         ensureGreen(INDEX_NAME);
         indexExists(INDEX_NAME);
     }
 
     @Test
     public void theFieldWorks() throws IOException {
-        doCreateIndex();
+        doCreateIndex(8);
 
         client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument0()).get();
         client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument0_5()).get();
@@ -84,8 +85,12 @@ public class EsPluginTests extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(INDEX_NAME).setExplain(true).setQuery(rangeQuery("v").from("-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0").to("1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0")).get();
 
         assertEquals(2, response.getHits().totalHits);
-
-        SearchHit hit = response.getHits().getHits()[0];
     }
 
+    @Test(expected = ElasticsearchException.class)
+    public void wrongDimensionsFails() throws IOException {
+        doCreateIndex(3);
+
+        client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument0()).get();
+    }
 }

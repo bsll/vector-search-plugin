@@ -47,20 +47,12 @@ public class EsPluginTests extends ESIntegTestCase {
             .endObject();
     }
 
+    private XContentBuilder exampleDocument(String v) throws IOException {
+        return jsonBuilder().startObject().field("v", v).endObject();
+    }
+
     private void doCreateIndex(int dimensions) throws IOException {
         client().admin().indices().prepareCreate(INDEX_NAME).setSettings(exampleSettings()).addMapping(TYPE_NAME, exampleMapping(dimensions)).get();
-    }
-
-    private XContentBuilder exampleDocument0() throws IOException {
-        return jsonBuilder().startObject().field("v", "0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0").endObject();
-    }
-
-    private XContentBuilder exampleDocument0_5() throws IOException {
-        return jsonBuilder().startObject().field("v", "0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5").endObject();
-    }
-
-    private XContentBuilder exampleDocument2() throws IOException {
-        return jsonBuilder().startObject().field("v", "2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0").endObject();
     }
 
     @Test
@@ -71,24 +63,33 @@ public class EsPluginTests extends ESIntegTestCase {
     }
 
     @Test
-    public void theFieldWorks() throws IOException {
+    public void itWorks() throws IOException {
         doCreateIndex(8);
 
-        client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument0()).get();
-        client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument0_5()).get();
-        client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument2()).get();
+        String[] vectors = new String[] {
+                "-0.75,-0.75,-0.75,-0.75,-0.75,-0.75,-0.75,-0.75",
+                "0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0",
+                "0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75",
+                "5.0,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.99,0.99,0.99,0.99,0.99,0.99,0.99,1.01",
+                "2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0"
+        };
+
+        for (String v : vectors)
+            client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument(v)).get();
 
         refresh(INDEX_NAME);
 
         SearchResponse response = client().prepareSearch(INDEX_NAME).setExplain(true).setQuery(rangeQuery("v").from("-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0").to("1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0")).get();
 
-        assertEquals(2, response.getHits().totalHits);
+        assertEquals(4, response.getHits().totalHits);
     }
 
     @Test(expected = ElasticsearchException.class)
     public void wrongDimensionsFails() throws IOException {
         doCreateIndex(3);
 
-        client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument0()).get();
+        client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument("1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0")).get();
     }
 }

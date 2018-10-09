@@ -47,35 +47,33 @@ Example query:
 POST my_index/_search
 {
   "query": {
-    "range": {
-      "pca_reduced_vector": {
-        "from": "0,0,0,0,0,0,0,0",
-        "to": "5,5,5,5,5,5,5,5"
-      }
-    }
-  },
-  "rescore": {
-    "window_size": 10000,
-    "query": {
-      "rescore_query": {
-        "function_score": {
-          "boost_mode": "replace",
+    "function_score": {
+      "query": {
+        "range": {
+          "pca_reduced_vector": {
+            "from": "-0.5,-0.5,-0.5,-0.5,-0.5,-0.5,-0.5,-0.5",
+            "to": "0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5"
+          }
+        }
+      },
+      "functions": [
+        {
           "script_score": {
             "script": {
-              "inline": "binary_vector_score",
-              "lang": "knn",
+              "inline": "vector_scoring",
+              "lang": "binary_vector_score",
               "params": {
-                "cosine": false,
-                "field": "full_vector",
-                "vector": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 12, 13, 14, 15]
+                "vector_field": "full_vector",
+                "vector": [ 0.0, 0.0716, 0.1761, 0.0, 0.0779, 0.0, 0.1382, 0.3729 ]
               }
             }
           }
         }
-      }
+      ],
+      "boost_mode": "replace"
     }
   },
-  "size": 75
+  "size": 10
 }
 ```
 
@@ -102,9 +100,36 @@ PUT my_index
 ```
 
 For indexing, this plugin expects comma separated floating point values (without spaces in between). The vector scoring
-plugin mentioned above required Base64 encoded binary values of floating point numbers, see their documentation.
+plugin mentioned above required Base64 encoded binary values of floating point numbers, see their documentation. Example:
+
+```
+full_vector = [0.0, 0.0, ....]  # Full length vector
+pca_reduced_vector = [0.0, 0.0, ....]  # 8 dimensional reduced vector
+
+es.index(INDEX, DOC_TYPE, {
+  "full_vector": base64.b64encode(np.array(full_vector).astype(np.dtype('>f8'))).decode("utf-8"),
+  "pca_reduced_vector": ",".join([str(x) for x in pca_reduced_vector]),
+})
+```
 
 It's also possible to combine this plugin with other approaches, the FAISS library implements a few suggestions that
 work with elasticsearch, such as clustering (just index and filter on cluster labels).
+
+
+## Speed / performance
+
+Speed is one of the main reasons to use this plugin.  Let's say you want to find the 1000 nearest neighbours from a
+dataset of 500.000 documents. Without any filtering, calculating all the distances using the vector scoring plugin
+mentioned above takes around 1500ms on my laptop. With pre-filtering on the PCA reduced vectors, you get the same 1000
+nearest neighbours, but it takes only 75ms. So that's around 20 times faster.
+
+You will need to experiment to find an optimal range if you decide to use this plugin. There is a tradeoff between
+accuracy and speed. The vectors as dimension reduced by PCA explain only part of the variance of the full vectors,
+so if the filtering is too aggressive you lose some near neighbours. If filtering is too broad, you need to calculate
+full distances on a lot of vectors, making things slow. For us a good point was to set the filtering/range such that we
+rescore about 10.000 - 20.000 full vectors. That gave us almost perfect accuracy with good speed.
+
+
+## Enjoy!
 
 Good luck, send me a message if you have questions!

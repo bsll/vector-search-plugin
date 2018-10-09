@@ -117,13 +117,13 @@ public class VectorMapper extends FieldMapper {
             if (lowerTerm != null) {
                 l = parseDoublesInString(((BytesRef)lowerTerm).utf8ToString());
                 if (l.length != pointDimensionCount())
-                    throw new ElasticsearchParseException("Data has wrong number of dimensions %d (should be %d)", l.length, pointDimensionCount());
+                    throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", l.length, pointDimensionCount());
             }
 
             if (upperTerm != null) {
                 u = parseDoublesInString(((BytesRef)upperTerm).utf8ToString());
                 if (u.length != pointDimensionCount())
-                    throw new ElasticsearchParseException("Data has wrong number of dimensions %d (should be %d)", u.length, pointDimensionCount());
+                    throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", u.length, pointDimensionCount());
             }
 
             return DoublePoint.newRangeQuery(this.name(), l, u);
@@ -146,7 +146,7 @@ public class VectorMapper extends FieldMapper {
         if (value != null) {
             double[] values = parseDoublesInString(value);
             if (values.length != fieldType().pointDimensionCount())
-                throw new ElasticsearchParseException("Data has wrong number of dimensions %d (should be %d)", values.length, fieldType().pointDimensionCount());
+                throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", values.length, fieldType().pointDimensionCount());
             fields.add(new DoublePoint(fieldType().name(), values));
         }
     }

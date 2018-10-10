@@ -123,11 +123,15 @@ dataset of 500.000 documents. Without any filtering, calculating all the distanc
 mentioned above takes around 1500ms on my laptop. With pre-filtering on the PCA reduced vectors, you get the same 1000
 nearest neighbours, but it takes only 75ms. So that's around 20 times faster.
 
+![Number of reranked documents vs Query time (milliseconds)](https://github.com/EikeDehling/vector-search-plugin/raw/master/size_vs_time.png "Number of docs versus Query time")
+
 You will need to experiment to find an optimal range if you decide to use this plugin. There is a tradeoff between
 accuracy and speed. The vectors as dimension reduced by PCA explain only part of the variance of the full vectors,
 so if the filtering is too aggressive you lose some near neighbours. If filtering is too broad, you need to calculate
 full distances on a lot of vectors, making things slow. For us a good point was to set the filtering/range such that we
 rescore about 10.000 - 20.000 full vectors. That gave us almost perfect accuracy with good speed.
+
+![Number of reranked documents vs Result quality (Overlap of top 100)](https://github.com/EikeDehling/vector-search-plugin/raw/master/size_vs_overlap.png "Number of docs versus Overlap")
 
 
 ## Enjoy!

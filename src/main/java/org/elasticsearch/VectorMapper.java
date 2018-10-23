@@ -1,6 +1,7 @@
 package org.elasticsearch;
 
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -19,11 +20,20 @@ import java.util.List;
 import java.util.Map;
 
 
+/**
+ * This field type is for efficient indexing and searching in multi-dimensional vectors. It uses
+ * lucene points underneath for fast nearest neighbour search.
+ */
 public class VectorMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "vector";
     public static final String DIMENSIONS = "dimensions";
 
+    /**
+     * The default number of point dimensions, in case not specified. Note lucene has a built-in max
+     * of 8 dimenions. You can change that maximum in lucene and make your own build, then a larger
+     * number of dimensions is also possible here.
+     */
     public static final int DEFAULT_DIMENSIONS = 8;
 
     public static class Defaults {
@@ -37,6 +47,9 @@ public class VectorMapper extends FieldMapper {
         }
     }
 
+    /**
+     * Builder class, no magic here, just boilerplate code.
+     */
     public static class Builder extends FieldMapper.Builder<Builder, VectorMapper> {
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -55,6 +68,10 @@ public class VectorMapper extends FieldMapper {
         }
     }
 
+    /**
+     * This class parses the json sent when creating a field via api. The super-class method .parseField() isn't called
+     * since we don't support all those parameters anyway.
+     */
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -68,6 +85,9 @@ public class VectorMapper extends FieldMapper {
         }
     }
 
+    /**
+     * This method serializes the field definition back to json, for display in api or transmission between nodes.
+     */
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
@@ -77,6 +97,9 @@ public class VectorMapper extends FieldMapper {
         }
     }
 
+    /**
+     * This is the actual field type. Mostly boilerplate, but the rangeQuery() method is ineteresting.
+     */
     public static class VectorSearchFieldType extends SimpleMappedFieldType {
 
         public VectorSearchFieldType() {
@@ -106,24 +129,30 @@ public class VectorMapper extends FieldMapper {
             throw new QueryShardException(context, "No exact searching on this field! [" + name() + "]");
         }
 
+        /**
+         * Range query within the multi-dimensional space. This uses the underlying lucene points KDTree data structure
+         * which efficiently filters on values in the queried range.
+         */
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            double[] l = new double[] { Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
-                                        Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY };
-
-            double[] u = new double[] { Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                                        Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY };
+            double[] l, u;
 
             if (lowerTerm != null) {
                 l = parseDoublesInString(((BytesRef)lowerTerm).utf8ToString());
-                if (l.length != pointDimensionCount())
-                    throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", l.length, pointDimensionCount());
+                checkData(l, this);
+            } else {
+                l = new double[pointDimensionCount()];
+                for (int i = 0; i < l.length; ++i)
+                    l[i] = Double.NEGATIVE_INFINITY;
             }
 
             if (upperTerm != null) {
                 u = parseDoublesInString(((BytesRef)upperTerm).utf8ToString());
-                if (u.length != pointDimensionCount())
-                    throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", u.length, pointDimensionCount());
+                checkData(u, this);
+            } else {
+                u = new double[pointDimensionCount()];
+                for (int i = 0; i < u.length; ++i)
+                    u[i] = Double.POSITIVE_INFINITY;
             }
 
             return DoublePoint.newRangeQuery(this.name(), l, u);
@@ -139,18 +168,24 @@ public class VectorMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    /**
+     * Parse and add the data to the lucene index. By using the DoublePoint field, we get the KDTree structure...
+     */
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final String value = context.parser().textOrNull();
 
         if (value != null) {
             double[] values = parseDoublesInString(value);
-            if (values.length != fieldType().pointDimensionCount())
-                throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", values.length, fieldType().pointDimensionCount());
-            fields.add(new DoublePoint(fieldType().name(), values));
+            checkData(values, fieldType);
+            fields.add(new DoublePoint(fieldType.name(), values));
         }
     }
 
+    /**
+     * Parses a stringified and comma-separated list of double values. This isn't great, i'd rather write theis as a
+     * json array... To be improved ;-)
+     */
     private static double[] parseDoublesInString(String data) {
         String[] parts = data.split(",");
 
@@ -160,6 +195,14 @@ public class VectorMapper extends FieldMapper {
         }
 
         return res;
+    }
+
+    /**
+     * Ensure the data is of correct format (dimensions)
+     */
+    private static void checkData(double[] values, FieldType field) {
+        if (values.length != field.pointDimensionCount())
+            throw new ElasticsearchParseException("Data has wrong number of dimensions {} (should be {})", values.length, field.pointDimensionCount());
     }
 
 }

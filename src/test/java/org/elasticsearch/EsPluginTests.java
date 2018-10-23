@@ -86,6 +86,78 @@ public class EsPluginTests extends ESIntegTestCase {
         assertEquals(4, response.getHits().totalHits);
     }
 
+    @Test
+    public void itWorksOnlyUpperRange() throws IOException {
+        doCreateIndex(8);
+
+        String[] vectors = new String[] {
+                "-0.75,-0.75,-0.75,-0.75,-0.75,-0.75,-0.75,-0.75",
+                "0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0",
+                "0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75",
+                "5.0,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.99,0.99,0.99,0.99,0.99,0.99,0.99,1.01",
+                "2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0"
+        };
+
+        for (String v : vectors)
+            client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument(v)).get();
+
+        refresh(INDEX_NAME);
+
+        SearchResponse response = client().prepareSearch(INDEX_NAME).setExplain(true).setQuery(rangeQuery("v").to("1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0")).get();
+
+        assertEquals(4, response.getHits().totalHits);
+    }
+
+    @Test
+    public void itWorksOnlyLowerRange() throws IOException {
+        doCreateIndex(8);
+
+        String[] vectors = new String[] {
+                "-0.75,-0.75,-0.75,-0.75,-0.75,-0.75,-0.75,-0.75",
+                "0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0",
+                "0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.75,0.75,0.75,0.75,0.75,0.75,0.75,0.75",
+                "-5.0,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.99,0.99,0.99,0.99,0.99,0.99,0.99,1.01",
+                "-2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0"
+        };
+
+        for (String v : vectors)
+            client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument(v)).get();
+
+        refresh(INDEX_NAME);
+
+        SearchResponse response = client().prepareSearch(INDEX_NAME).setExplain(true).setQuery(rangeQuery("v").from("-0.5,-0.5,-0.5,-0.5,-0.5,-0.5,-0.5,-0.5")).get();
+
+        assertEquals(4, response.getHits().totalHits);
+    }
+
+    @Test
+    public void itWorks6Dimensions() throws IOException {
+        doCreateIndex(6);
+
+        String[] vectors = new String[] {
+                "-0.75,-0.75,-0.75,-0.75,-0.75,-0.75",
+                "0.0,0.0,0.0,0.0,0.0,0.0",
+                "0.5,0.5,0.5,0.5,0.5,0.5",
+                "0.75,0.75,0.75,0.75,0.75,0.75",
+                "5.0,0.5,0.5,0.5,0.5,0.5",
+                "0.99,0.99,0.99,0.99,0.99,1.01",
+                "2.0,2.0,2.0,2.0,2.0,2.0"
+        };
+
+        for (String v : vectors)
+            client().prepareIndex(INDEX_NAME, TYPE_NAME).setSource(exampleDocument(v)).get();
+
+        refresh(INDEX_NAME);
+
+        SearchResponse response = client().prepareSearch(INDEX_NAME).setExplain(true).setQuery(rangeQuery("v").from("-1.0,-1.0,-1.0,-1.0,-1.0,-1.0").to("1.0,1.0,1.0,1.0,1.0,1.0")).get();
+
+        assertEquals(4, response.getHits().totalHits);
+    }
+
     @Test(expected = ElasticsearchException.class)
     public void wrongDimensionsFails() throws IOException {
         doCreateIndex(3);

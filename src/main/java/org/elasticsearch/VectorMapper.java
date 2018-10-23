@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -142,8 +143,7 @@ public class VectorMapper extends FieldMapper {
                 checkData(l, this);
             } else {
                 l = new double[pointDimensionCount()];
-                for (int i = 0; i < l.length; ++i)
-                    l[i] = Double.NEGATIVE_INFINITY;
+                Arrays.fill(l, Double.NEGATIVE_INFINITY);
             }
 
             if (upperTerm != null) {
@@ -151,8 +151,7 @@ public class VectorMapper extends FieldMapper {
                 checkData(u, this);
             } else {
                 u = new double[pointDimensionCount()];
-                for (int i = 0; i < u.length; ++i)
-                    u[i] = Double.POSITIVE_INFINITY;
+                Arrays.fill(u, Double.POSITIVE_INFINITY);
             }
 
             return DoublePoint.newRangeQuery(this.name(), l, u);
